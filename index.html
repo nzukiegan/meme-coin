@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Coin Scalping Dashboard</title>
+    <style>
+        :root {
+            --green: #4caf50;
+            --light-green: #e8f5e9;
+            --red: #f44336;
+            --light-red: #ffebee;
+            --yellow: #ffc107;
+            --light-yellow: #fff8e1;
+            --gray: #f5f5f5;
+            --dark-gray: #333;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        h1 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        label {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background-color: #3367d6;
+        }
+        
+        .api-key-section {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .api-key-section h3 {
+            margin-top: 0;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            color: #666;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        th:hover {
+            background-color: #eee;
+        }
+        
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        
+        .signal-green {
+            background-color: var(--light-green);
+        }
+        
+        .signal-red {
+            background-color: var(--light-red);
+        }
+        
+        .signal-yellow {
+            background-color: var(--light-yellow);
+        }
+        
+        .signal-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .signal-indicator.green {
+            background-color: var(--green);
+        }
+        
+        .signal-indicator.red {
+            background-color: var(--red);
+        }
+        
+        .signal-indicator.yellow {
+            background-color: var(--yellow);
+        }
+        
+        .positive {
+            color: var(--green);
+            font-weight: bold;
+        }
+        
+        .negative {
+            color: var(--red);
+            font-weight: bold;
+        }
+        
+        .sparkline {
+            display: inline-block;
+            width: 60px;
+            height: 20px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            color: var(--red);
+            padding: 10px;
+            background-color: var(--light-red);
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .controls, .stats {
+                flex-direction: column;
+            }
+            
+            th, td {
+                padding: 8px 10px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Meme Coin Scalping Dashboard</h1>
+            <div id="last-updated">Last updated: -</div>
+        </header>
+        
+        <div class="api-key-section">
+            <h3>API Configuration</h3>
+            <p>You need a Helius API key to use this dashboard. Get one at <a href="https://dev.helius.xyz" target="_blank">dev.helius.xyz</a></p>
+            <div class="control-group">
+                <label for="helius-api-key">Helius API Key</label>
+                <input type="text" id="helius-api-key" placeholder="Enter your Helius API key">
+            </div>
+            <button id="save-api-key">Save API Key</button>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="min-market-cap">Min Market Cap ($)</label>
+                <input type="number" id="min-market-cap" value="0" min="0">
+            </div>
+            
+            <div class="control-group">
+                <label for="max-market-cap">Max Market Cap ($)</label>
+                <input type="number" id="max-market-cap" value="100000" min="0">
+            </div>
+            
+            <div class="control-group">
+                <label for="min-liquidity">Min Liquidity ($)</label>
+                <input type="number" id="min-liquidity" value="1000" min="0">
+            </div>
+            
+            <div class="control-group">
+                <label for="momentum-threshold">Momentum % Threshold</label>
+                <input type="number" id="momentum-threshold" value="50" min="0">
+            </div>
+            
+            <div class="control-group">
+                <label for="velocity-threshold">Velocity Spike Factor</label>
+                <input type="number" id="velocity-threshold" value="2" min="1" step="0.1">
+            </div>
+            
+            <div class="control-group">
+                <label for="refresh-interval">Refresh (sec)</label>
+                <input type="number" id="refresh-interval" value="30" min="5">
+            </div>
+            
+            <div class="control-group" style="justify-content: flex-end;">
+                <button id="apply-btn">Apply Settings</button>
+            </div>
+        </div>
+        
+        <div id="error-message" class="error" style="display: none;"></div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Tracked Coins</h3>
+                <div id="tracked-coins" class="stat-value">0</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Green Signals</h3>
+                <div id="green-signals" class="stat-value">0</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Red Signals</h3>
+                <div id="red-signals" class="stat-value">0</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Last Signal</h3>
+                <div id="last-signal" class="stat-value">-</div>
+            </div>
+        </div>
+        
+        <table id="coins-table">
+            <thead>
+                <tr>
+                    <th data-sort="name">Coin ▴</th>
+                    <th data-sort="marketCap">Market Cap</th>
+                    <th data-sort="liquidity">Liquidity</th>
+                    <th data-sort="price">Price</th>
+                    
+                    <th data-sort="volume15s">Volume (15s)</th>
+                    <th data-sort="volume30s">Volume (30s)</th>
+                    
+                    <th data-sort="volume1m">Volume (1m)</th>
+                    <th data-sort="volume5m">Volume (5m)</th>
+                    
+                    <th data-sort="momentum">Momentum %</th>
+                    <th data-sort="velocity">Velocity</th>
+                    <th data-sort="buySellRatio">Buy/Sell Ratio</th>
+                    <th data-sort="signal">Signal</th>
+                </tr>
+            </thead>
+            <tbody id="coins-data">
+                <tr>
+                    <td colspan="12" class="loading">
+                        Enter your Helius API key and click Apply Settings to load data.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+    </div>
+
+    <script>
+        const config = {
+            minMarketCap: 0,
+            maxMarketCap: 100000,
+            minLiquidity: 1000,
+            momentumThreshold: 50,
+            velocityThreshold: 2,
+            refreshInterval: 30000, // 30 seconds
+            dexScreenerAPI: 'https://api.dexscreener.com/latest/dex/tokens/',
+            birdeyeAPI: 'https://public-api.birdeye.so/public/tokenlist?sort_by=v24h_changepercent&sort_type=desc',
+            heliusAPI: 'https://api.helius.xyz/v0/'
+        };
+
+        let coinsData = [];
+        let sortField = 'name';
+        let sortDirection = 'asc';
+        let refreshIntervalId = null;
+        let heliusAPIKey = '';
+
+        const coinsTable = document.getElementById('coins-table');
+        const coinsDataBody = document.getElementById('coins-data');
+        const lastUpdatedEl = document.getElementById('last-updated');
+        const trackedCoinsEl = document.getElementById('tracked-coins');
+        const greenSignalsEl = document.getElementById('green-signals');
+        const redSignalsEl = document.getElementById('red-signals');
+        const lastSignalEl = document.getElementById('last-signal');
+        const applyBtn = document.getElementById('apply-btn');
+        const saveApiKeyBtn = document.getElementById('save-api-key');
+        const heliusApiKeyInput = document.getElementById('helius-api-key');
+        const errorMessageEl = document.getElementById('error-message');
+        const preMigrationTokens = {};
+        let ws = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedKey = localStorage.getItem('heliusApiKey');
+            if (savedKey) {
+                heliusApiKeyInput.value = savedKey;
+                heliusAPIKey = savedKey;
+            }
+            
+            loadConfigFromUI();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            applyBtn.addEventListener('click', function() {
+                loadConfigFromUI();
+                clearInterval(refreshIntervalId);
+            });
+
+            saveApiKeyBtn.addEventListener('click', function() {
+                heliusAPIKey = heliusApiKeyInput.value.trim();
+                if (heliusAPIKey) {
+                    localStorage.setItem('heliusApiKey', heliusAPIKey);
+                    alert('API key saved successfully!');
+                    
+                    initPumpPortalWS();
+
+                    startPeriodicUpdate();
+                } else {
+                    alert('Please enter a valid API key');
+                }
+            });
+
+            const headers = coinsTable.querySelectorAll('th');
+            headers.forEach(header => {
+                header.addEventListener('click', () => {
+                    const field = header.getAttribute('data-sort');
+                    if (sortField === field) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortField = field;
+                        sortDirection = 'asc';
+                    }
+                    
+                    headers.forEach(h => h.textContent = h.textContent.replace(' ▴', '').replace(' ▾', ''));
+                    header.textContent += sortDirection === 'asc' ? ' ▴' : ' ▾';
+                    
+                    sortData();
+                    renderTable();
+                });
+            });
+        }
+
+        function loadConfigFromUI() {
+            config.minMarketCap = parseInt(document.getElementById('min-market-cap').value) || 0;
+            config.maxMarketCap = parseInt(document.getElementById('max-market-cap').value) || 100000;
+            config.minLiquidity = parseInt(document.getElementById('min-liquidity').value) || 1000;
+            config.momentumThreshold = parseInt(document.getElementById('momentum-threshold').value) || 50;
+            config.velocityThreshold = parseFloat(document.getElementById('velocity-threshold').value) || 2;
+            config.refreshInterval = (parseInt(document.getElementById('refresh-interval').value) || 30) * 1000;
+        }
+
+        function showError(message) {
+            errorMessageEl.textContent = message;
+            errorMessageEl.style.display = 'block';
+        }
+
+        function hideError() {
+            errorMessageEl.style.display = 'none';
+        }
+
+        function initPumpPortalWS() {
+            if (ws && ws.readyState === WebSocket.OPEN) return;
+
+            ws = new WebSocket('wss://pumpportal.fun/api/data');
+
+            ws.onopen = () => {
+                console.log('Connected to PumpPortal WebSocket');
+                ws.send(JSON.stringify({ method: 'subscribeNewToken' }));
+                ws.send(JSON.stringify({ method: 'subscribeMigration' }));
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.txType === 'create') {
+                    const price = msg.vSolInBondingCurve / msg.vTokensInBondingCurve;
+
+                    preMigrationTokens[msg.mint] = {
+                        name: msg.name,
+                        symbol: msg.symbol,
+                        mint: msg.mint,
+                        is_pre_migration: true,
+                        marketCap: msg.marketCapSol,
+                        liquidity: msg.vSolInBondingCurve,
+                        price,
+                        processed: false
+                    };
+                }
+
+
+                if (msg.txType === 'migrate') {
+                    if (preMigrationTokens[msg.mint]) {
+                        preMigrationTokens[msg.mint].is_pre_migration = false;
+                    }
+                }
+            };
+
+            ws.onerror = (err) => console.error('WebSocket error:', err);
+            ws.onclose = () => console.log('PumpPortal WebSocket closed');
+        }
+
+        async function startPeriodicUpdate() {
+            if (refreshIntervalId) clearInterval(refreshIntervalId);
+                refreshIntervalId = setInterval(async() => {
+                    if (Object.keys(preMigrationTokens).length) {
+                        const coins = Object.values(preMigrationTokens).filter(t => t.is_pre_migration);
+                        const coinsWithTradingData = await fetchTradingData(coins);
+                        coinsData = coinsWithTradingData;
+                    }
+                    console.log("processing data")
+                    processData();
+                    console.log("updating stats")
+                    updateStats();
+                    console.log("sort data")
+                    sortData();
+                    console.log("Rendering data")
+                    renderTable();
+                    lastUpdatedEl.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+                }, config.refreshInterval);
+        }
+
+
+        async function fetchCoins() {
+            return Object.values(preMigrationTokens).filter(t => t.is_pre_migration);
+        }
+
+        async function fetchTradingData(coins) {
+            const coinsWithDetails = [];
+            
+            for (const coin of coins.slice(0, 20)) {
+                try {
+                    const response = await fetch(
+                        `${config.heliusAPI}addresses/${coin.mint}/transactions?api-key=${heliusAPIKey}&limit=100`
+                    );
+                    
+                    if (!response.ok) {
+                        console.warn(`Failed to fetch transactions for ${coin.symbol}`);
+                        continue;
+                    }
+                    
+                    const transactions = await response.json();
+                    
+                    const now = Date.now();
+                    const oneMinAgo = now - 60 * 1000;
+                    const fiveMinAgo = now - 5 * 60 * 1000;
+                    const thirtySecAgo = now - 30 * 1000;
+                    const fifteenSecAgo = now - 15 * 1000;
+                    
+                    let volume15s = 0, volume30s = 0, volume1m = 0, volume5m = 0;
+                    let tx15s = 0, tx30s = 0, tx1m = 0, tx5m = 0;
+                    let buys15s = 0, buys30s = 0, buys1m = 0, buys5m = 0;
+                    let sells15s = 0, sells30s = 0, sells1m = 0, sells5m = 0;
+                    
+                    transactions.forEach(tx => {
+                        if (!tx.timestamp) return;
+                        const txTime = new Date(tx.timestamp * 1000).getTime();
+
+                        const isBuy = isBuyTransaction(tx, coin.mint);
+                        const amount = getTransactionAmount(tx, coin.mint) || 0;
+
+                        // 5 min
+                        if (txTime >= fiveMinAgo) {
+                            volume5m += amount;
+                            tx5m++;
+                            if (isBuy) buys5m++; else sells5m++;
+                        }
+
+                        // 1 min
+                        if (txTime >= oneMinAgo) {
+                            volume1m += amount;
+                            tx1m++;
+                            if (isBuy) buys1m++; else sells1m++;
+                        }
+
+                        // 30s
+                        if (txTime >= thirtySecAgo) {
+                            volume30s += amount;
+                            tx30s++;
+                            if (isBuy) buys30s++; else sells30s++;
+                        }
+
+                        // 15s
+                        if (txTime >= fifteenSecAgo) {
+                            volume15s += amount;
+                            tx15s++;
+                            if (isBuy) buys15s++; else sells15s++;
+                        }
+                    });
+                    
+                    // Add to our detailed coins list
+                    coinsWithDetails.push({
+                        name: coin.name,
+                        symbol: coin.symbol,
+                        mint: coin.mint,
+                        marketCap: coin.marketCap,
+                        liquidity: coin.liquidity,
+                        price: coin.price,
+                        
+                        // 15s metrics
+                        volume15s,
+                        transactions15s: tx15s,
+                        buys15s,
+                        sells15s,
+                        
+                        // 30s metrics
+                        volume30s,
+                        transactions30s: tx30s,
+                        buys30s,
+                        sells30s,
+                        
+                        // 1m metrics
+                        volume1m,
+                        transactions1m: tx1m,
+                        buys1m,
+                        sells1m,
+                        
+                        // 5m metrics
+                        volume5m,
+                        transactions5m: tx5m,
+                        buys5m,
+                        sells5m,
+                        
+                        lastUpdated: new Date()
+                    });
+                    
+                } catch (error) {
+                    console.warn(`Error processing data for ${coin.symbol}:`, error);
+                }
+            }
+            
+            return coinsWithDetails;
+        }
+
+        function isBuyTransaction(tx, mintAddress) {
+            try {
+                if (tx.tokenTransfers && tx.tokenTransfers.length > 0) {
+                    const transfer = tx.tokenTransfers.find(t => 
+                        t.mint === mintAddress && 
+                        t.tokenAmount && 
+                        t.tokenAmount.amount > 0
+                    );
+                    
+                    if (transfer) {
+                        return true;
+                    }
+                }
+                
+                return false;
+            } catch (e) {
+                console.warn('Error analyzing transaction:', e);
+                return false;
+            }
+        }
+
+        function getTransactionAmount(tx, mintAddress) {
+            try {
+                if (tx.tokenTransfers && tx.tokenTransfers.length > 0) {
+                    const transfer = tx.tokenTransfers.find(t => t.mint === mintAddress);
+                    if (transfer && transfer.tokenAmount) {
+                        const decimals = transfer.tokenAmount.decimals || 9;
+                        return transfer.tokenAmount.amount / Math.pow(10, decimals);
+                    }
+                }
+                return 0;
+            } catch (e) {
+                console.warn('Error getting transaction amount:', e);
+                return 0;
+            }
+        }
+
+        function getTransactionAmountUnits(tx, mintAddress) {
+            try {
+                if (!tx.tokenTransfers || !Array.isArray(tx.tokenTransfers)) return 0;
+                const transfer = tx.tokenTransfers.find(t => t.mint === mintAddress);
+                if (!transfer || !transfer.tokenAmount) return 0;
+                const decimals = Number(transfer.tokenAmount.decimals || 0);
+                const rawAmount = Number(transfer.tokenAmount.amount || 0);
+                return rawAmount / Math.pow(10, decimals);
+            } catch (e) {
+                console.warn('Error getting transaction amount:', e);
+                return 0;
+            }
+        }
+
+        function processData() {
+            coinsData.forEach(coin => {
+                const avgVolume5m = coin.volume5m / 5;
+                coin.momentum = avgVolume5m > 0 ? 
+                    ((coin.volume1m - avgVolume5m) / avgVolume5m) * 100 : 0;
+                
+                coin.velocity = coin.transactions1m;
+                
+                const avgTransactions5m = coin.transactions5m / 5;
+                coin.avgTransactions = avgTransactions5m;
+                
+                coin.buySellRatio = coin.buys1m > 0 ? 
+                    (coin.sells1m > 0 ? coin.buys1m / coin.sells1m : coin.buys1m) : 0;
+                
+                if (coin.momentum > config.momentumThreshold && 
+                    coin.velocity > (avgTransactions5m * config.velocityThreshold)) {
+                    coin.signal = 'green';
+                } else if (coin.momentum < -config.momentumThreshold && 
+                           coin.velocity > (avgTransactions5m * config.velocityThreshold)) {
+                    coin.signal = 'red';
+                } else {
+                    coin.signal = 'yellow';
+                }
+            });
+        }
+
+        function sortData() {
+            coinsData.sort((a, b) => {
+                let valueA = a[sortField];
+                let valueB = b[sortField];
+                
+                if (typeof valueA === 'string') {
+                    return sortDirection === 'asc'
+                        ? valueA.localeCompare(valueB)
+                        : valueB.localeCompare(valueA);
+                }
+                
+                return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
+            });
+        }
+
+        function tokenUnitsToUsd(units, priceUsd) {
+            if (!priceUsd || isNaN(priceUsd)) return 0;
+            return units * Number(priceUsd);
+        }
+
+        function renderTable() {
+            if (coinsData.length === 0) {
+                console.log("coins data length is zero", coinsData)
+                coinsDataBody.innerHTML = '<tr><td colspan="12" class="loading">No coins match your criteria</td></tr>';
+                return;
+            }
+
+            console.log(coinsData)
+            
+            let html = '';
+            coinsData.forEach(coin => {
+                if (coin.marketCap < config.minMarketCap || 
+                    coin.marketCap > config.maxMarketCap || 
+                    coin.liquidity < config.minLiquidity) {
+                    return;
+                }
+
+                console.log("coin", coin)
+                
+                const signalClass = `signal-${coin.signal}`;
+                const momentumClass = coin.momentum >= 0 ? 'positive' : 'negative';
+                const ratioClass = coin.buySellRatio >= 1 ? 'positive' : 'negative';
+                
+                html += `
+                <tr class="${signalClass}">
+                    <td>${coin.name} (${coin.symbol})</td>
+                    <td>$${coin.marketCap}</td>
+                    <td>$${coin.liquidity}</td>
+                    <td>
+                    ${ 
+                        coin.price !== null && coin.price !== undefined
+                        ? Number(coin.price).toFixed(8)
+                        : '0.00000000'
+                    }
+                    </td>
+                    
+                    <!-- New shorter-term metrics -->
+                    <td>$${coin.transactions15s || 0}</td>
+                    <td>$${coin.transactions30s || 0}</td>
+                    
+                    <td>$${coin.transactions1m || 0}</td>
+                    <td>$${coin.transactions5m || 0}</td>
+                    
+                    <td class="${momentumClass}">${coin.momentum.toFixed(2)}%</td>
+                    <td>${coin.velocity}/min</td>
+                    <td class="${ratioClass}">${coin.buySellRatio.toFixed(2)}</td>
+                    <td><span class="signal-indicator ${coin.signal}"></span> ${coin.signal.toUpperCase()}</td>
+                </tr>
+                `;
+            });
+
+            coinsDataBody.innerHTML = html;
+            
+        }
+
+        function updateStats() {
+            const filteredCoins = coinsData.filter(coin => 
+                coin.marketCap >= config.minMarketCap && 
+                coin.marketCap <= config.maxMarketCap && 
+                coin.liquidity >= config.minLiquidity
+            );
+            
+            const greenSignals = filteredCoins.filter(coin => coin.signal === 'green').length;
+            const redSignals = filteredCoins.filter(coin => coin.signal === 'red').length;
+            
+            trackedCoinsEl.textContent = filteredCoins.length;
+            greenSignalsEl.textContent = greenSignals;
+            redSignalsEl.textContent = redSignals;
+            
+            if (filteredCoins.length > 0) {
+                const latestCoin = filteredCoins.reduce((latest, coin) => 
+                    coin.lastUpdated > latest.lastUpdated ? coin : latest, filteredCoins[0]);
+                lastSignalEl.textContent = `${latestCoin.name} (${latestCoin.signal.toUpperCase()})`;
+            } else {
+                lastSignalEl.textContent = '-';
+            }
+        }
+
+        function formatNumber(num) {
+            return num.toLocaleString('en-US');
+        }
+    </script>
+</body>
+</html>
