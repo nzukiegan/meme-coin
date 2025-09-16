@@ -328,7 +328,7 @@
             <tbody id="coins-data">
                 <tr>
                     <td colspan="12" class="loading">
-                        Enter your Helius API key and click Apply Settings to load data.
+                        loading data, please wait
                     </td>
                 </tr>
             </tbody>
@@ -391,10 +391,11 @@
                 if (heliusAPIKey) {
                     localStorage.setItem('heliusApiKey', heliusAPIKey);
                     alert('API key saved successfully!');
-                    
+                    coinsDataBody.innerHTML = '<tr><td colspan="12" class="loading">Loading data, please wait</td></tr>';
                     initPumpPortalWS();
 
                     startPeriodicUpdate();
+                    
                 } else {
                     alert('Please enter a valid API key');
                 }
