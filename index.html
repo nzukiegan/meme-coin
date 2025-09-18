@@ -698,7 +698,7 @@
             coinsData.forEach(coin => {
                 const avgVolume5m = coin.transactions5m / 5;
                 coin.momentum = avgVolume5m > 0 ? 
-                    ((coin.transactions30s - avgVolume5m) / avgVolume5m) * 100 : 0;
+                    ((coin.transactions1m - avgVolume5m) / avgVolume5m) * 100 : 0;
                 
                 coin.velocity = coin.transactions1m;
                 
