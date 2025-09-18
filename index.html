@@ -309,8 +309,8 @@
             <thead>
                 <tr>
                     <th data-sort="name">Coin ▴</th>
-                    <th data-sort="marketCap">Market Cap</th>
-                    <th data-sort="liquidity">Liquidity</th>
+                    <th data-sort="marketCap">Market Cap (SOL)</th>
+                    <th data-sort="liquidity">Liquidity (SOL)</th>
                     <th data-sort="price">Price</th>
                     
                     <th data-sort="volume15s">Volume (15s)</th>
@@ -350,6 +350,7 @@
         };
 
         let coinsData = [];
+        let trackedCoins = {}; // Object to track coins by mint address
         let sortField = 'name';
         let sortDirection = 'asc';
         let refreshIntervalId = null;
@@ -384,6 +385,7 @@
             applyBtn.addEventListener('click', function() {
                 loadConfigFromUI();
                 clearInterval(refreshIntervalId);
+                startPeriodicUpdate();
             });
 
             saveApiKeyBtn.addEventListener('click', function() {
@@ -393,9 +395,7 @@
                     alert('API key saved successfully!');
                     coinsDataBody.innerHTML = '<tr><td colspan="12" class="loading">Loading data, please wait</td></tr>';
                     initPumpPortalWS();
-
                     startPeriodicUpdate();
-                    
                 } else {
                     alert('Please enter a valid API key');
                 }
@@ -453,24 +453,30 @@
             ws.onmessage = (event) => {
                 const msg = JSON.parse(event.data);
                 if (msg.txType === 'create') {
-                    const price = msg.vSolInBondingCurve / msg.vTokensInBondingCurve;
+                    if (msg.name && msg.symbol && msg.mint) {
+                        const price = msg.vSolInBondingCurve / msg.vTokensInBondingCurve;
 
-                    preMigrationTokens[msg.mint] = {
-                        name: msg.name,
-                        symbol: msg.symbol,
-                        mint: msg.mint,
-                        is_pre_migration: true,
-                        marketCap: msg.marketCapSol,
-                        liquidity: msg.vSolInBondingCurve,
-                        price,
-                        processed: false
-                    };
+                        preMigrationTokens[msg.mint] = {
+                            name: msg.name,
+                            symbol: msg.symbol,
+                            mint: msg.mint,
+                            is_pre_migration: true,
+                            marketCap: msg.marketCapSol,
+                            liquidity: msg.vSolInBondingCurve,
+                            price,
+                            processed: false
+                        };
+                    }
                 }
 
 
                 if (msg.txType === 'migrate') {
                     if (preMigrationTokens[msg.mint]) {
                         preMigrationTokens[msg.mint].is_pre_migration = false;
+                        // Remove from tracked coins if it was being tracked
+                        if (trackedCoins[msg.mint]) {
+                            delete trackedCoins[msg.mint];
+                        }
                     }
                 }
             };
@@ -481,33 +487,70 @@
 
         async function startPeriodicUpdate() {
             if (refreshIntervalId) clearInterval(refreshIntervalId);
-                refreshIntervalId = setInterval(async() => {
-                    if (Object.keys(preMigrationTokens).length) {
-                        const coins = Object.values(preMigrationTokens).filter(t => t.is_pre_migration);
-                        const coinsWithTradingData = await fetchTradingData(coins);
-                        coinsData = coinsWithTradingData;
-                    }
-                    console.log("processing data")
-                    processData();
-                    console.log("updating stats")
-                    updateStats();
-                    console.log("sort data")
-                    sortData();
-                    console.log("Rendering data")
-                    renderTable();
-                    lastUpdatedEl.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
-                }, config.refreshInterval);
+            
+            // Initial update
+            await updateCoinsData();
+            
+            // Set up interval for subsequent updates
+            refreshIntervalId = setInterval(async () => {
+                await updateCoinsData();
+            }, config.refreshInterval);
         }
 
-
-        async function fetchCoins() {
-            return Object.values(preMigrationTokens).filter(t => t.is_pre_migration);
+        async function updateCoinsData() {
+            // Get new coins from preMigrationTokens
+            const newCoins = Object.values(preMigrationTokens).filter(t => t.is_pre_migration);
+            
+            // Add new coins to trackedCoins if they don't exist
+            newCoins.forEach(coin => {
+                if (!trackedCoins[coin.mint]) {
+                    trackedCoins[coin.mint] = {
+                        ...coin,
+                        volume15s: 0,
+                        volume30s: 0,
+                        volume1m: 0,
+                        volume5m: 0,
+                        transactions15s: 0,
+                        transactions30s: 0,
+                        transactions1m: 0,
+                        transactions5m: 0,
+                        buys15s: 0,
+                        buys30s: 0,
+                        buys1m: 0,
+                        buys5m: 0,
+                        sells15s: 0,
+                        sells30s: 0,
+                        sells1m: 0,
+                        sells5m: 0,
+                        lastUpdated: new Date()
+                    };
+                }
+            });
+            
+            // Update trading data for all tracked coins
+            const updatedCoins = await fetchTradingData(Object.values(trackedCoins));
+            
+            // Update trackedCoins with new data
+            updatedCoins.forEach(coin => {
+                if (trackedCoins[coin.mint]) {
+                    trackedCoins[coin.mint] = {...trackedCoins[coin.mint], ...coin};
+                }
+            });
+            
+            // Convert to array for processing and rendering
+            coinsData = Object.values(trackedCoins);
+            
+            processData();
+            updateStats();
+            sortData();
+            renderTable();
+            lastUpdatedEl.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
         }
 
         async function fetchTradingData(coins) {
             const coinsWithDetails = [];
             
-            for (const coin of coins.slice(0, 20)) {
+            for (const coin of coins) {
                 try {
                     const response = await fetch(
                         `${config.heliusAPI}addresses/${coin.mint}/transactions?api-key=${heliusAPIKey}&limit=100`
@@ -515,6 +558,8 @@
                     
                     if (!response.ok) {
                         console.warn(`Failed to fetch transactions for ${coin.symbol}`);
+                        // Keep the existing data if we can't fetch new data
+                        coinsWithDetails.push(coin);
                         continue;
                     }
                     
@@ -569,13 +614,7 @@
                     
                     // Add to our detailed coins list
                     coinsWithDetails.push({
-                        name: coin.name,
-                        symbol: coin.symbol,
-                        mint: coin.mint,
-                        marketCap: coin.marketCap,
-                        liquidity: coin.liquidity,
-                        price: coin.price,
-                        
+                        ...coin,
                         // 15s metrics
                         volume15s,
                         transactions15s: tx15s,
@@ -605,6 +644,8 @@
                     
                 } catch (error) {
                     console.warn(`Error processing data for ${coin.symbol}:`, error);
+                    // Keep the existing data if there's an error
+                    coinsWithDetails.push(coin);
                 }
             }
             
@@ -613,21 +654,26 @@
 
         function isBuyTransaction(tx, mintAddress) {
             try {
-                if (tx.tokenTransfers && tx.tokenTransfers.length > 0) {
-                    const transfer = tx.tokenTransfers.find(t => 
-                        t.mint === mintAddress && 
-                        t.tokenAmount && 
-                        t.tokenAmount.amount > 0
-                    );
-                    
-                    if (transfer) {
-                        return true;
-                    }
-                }
-                
+                if (!tx.tokenTransfers || tx.tokenTransfers.length === 0) return false;
+                const receivedToken = tx.tokenTransfers.find(t =>
+                    t.mint === mintAddress &&
+                    Number(t.tokenAmount?.amount) > 0 &&
+                    t.toUserAccount
+                );
+
+                const sentToken = tx.tokenTransfers.find(t =>
+                    t.mint === mintAddress &&
+                    Number(t.tokenAmount?.amount) > 0 &&
+                    t.fromUserAccount
+                );
+
+                if (receivedToken) return true;
+
+                if (sentToken) return false;
+
                 return false;
             } catch (e) {
-                console.warn('Error analyzing transaction:', e);
+                console.warn("Error analyzing transaction:", e);
                 return false;
             }
         }
@@ -648,33 +694,20 @@
             }
         }
 
-        function getTransactionAmountUnits(tx, mintAddress) {
-            try {
-                if (!tx.tokenTransfers || !Array.isArray(tx.tokenTransfers)) return 0;
-                const transfer = tx.tokenTransfers.find(t => t.mint === mintAddress);
-                if (!transfer || !transfer.tokenAmount) return 0;
-                const decimals = Number(transfer.tokenAmount.decimals || 0);
-                const rawAmount = Number(transfer.tokenAmount.amount || 0);
-                return rawAmount / Math.pow(10, decimals);
-            } catch (e) {
-                console.warn('Error getting transaction amount:', e);
-                return 0;
-            }
-        }
-
         function processData() {
             coinsData.forEach(coin => {
-                const avgVolume5m = coin.volume5m / 5;
+                const avgVolume5m = coin.transactions5m / 5;
                 coin.momentum = avgVolume5m > 0 ? 
-                    ((coin.volume1m - avgVolume5m) / avgVolume5m) * 100 : 0;
+                    ((coin.transactions1m - avgVolume5m) / avgVolume5m) * 100 : 0;
                 
                 coin.velocity = coin.transactions1m;
                 
                 const avgTransactions5m = coin.transactions5m / 5;
                 coin.avgTransactions = avgTransactions5m;
                 
-                coin.buySellRatio = coin.buys1m > 0 ? 
-                    (coin.sells1m > 0 ? coin.buys1m / coin.sells1m : coin.buys1m) : 0;
+                // Calculate buy/sell ratio as a ratio (a:b) instead of percentage
+                coin.buySellRatio = coin.buys5m > 0 || coin.sells5m > 0 ? 
+                    `${coin.buys5m}:${coin.sells5m}` : '0:0';
                 
                 if (coin.momentum > config.momentumThreshold && 
                     coin.velocity > (avgTransactions5m * config.velocityThreshold)) {
@@ -693,6 +726,16 @@
                 let valueA = a[sortField];
                 let valueB = b[sortField];
                 
+                // Handle special case for buySellRatio which is now a string "a:b"
+                if (sortField === 'buySellRatio') {
+                    const [buysA, sellsA] = a.buySellRatio.split(':').map(Number);
+                    const [buysB, sellsB] = b.buySellRatio.split(':').map(Number);
+                    const ratioA = sellsA > 0 ? buysA / sellsA : buysA;
+                    const ratioB = sellsB > 0 ? buysB / sellsB : buysB;
+                    
+                    return sortDirection === 'asc' ? ratioA - ratioB : ratioB - ratioA;
+                }
+                
                 if (typeof valueA === 'string') {
                     return sortDirection === 'asc'
                         ? valueA.localeCompare(valueB)
@@ -703,20 +746,12 @@
             });
         }
 
-        function tokenUnitsToUsd(units, priceUsd) {
-            if (!priceUsd || isNaN(priceUsd)) return 0;
-            return units * Number(priceUsd);
-        }
-
         function renderTable() {
             if (coinsData.length === 0) {
-                console.log("coins data length is zero", coinsData)
                 coinsDataBody.innerHTML = '<tr><td colspan="12" class="loading">No coins match your criteria</td></tr>';
                 return;
             }
 
-            console.log(coinsData)
-            
             let html = '';
             coinsData.forEach(coin => {
                 if (coin.marketCap < config.minMarketCap || 
@@ -724,22 +759,22 @@
                     coin.liquidity < config.minLiquidity) {
                     return;
                 }
-
-                console.log("coin", coin)
                 
                 const signalClass = `signal-${coin.signal}`;
                 const momentumClass = coin.momentum >= 0 ? 'positive' : 'negative';
-                const ratioClass = coin.buySellRatio >= 1 ? 'positive' : 'negative';
+                
+                const [buys, sells] = coin.buySellRatio.split(':').map(Number);
+                const ratioClass = buys >= sells ? 'positive' : 'negative';
                 
                 html += `
                 <tr class="${signalClass}">
                     <td>${coin.name} (${coin.symbol})</td>
-                    <td>$${coin.marketCap}</td>
-                    <td>$${coin.liquidity}</td>
+                    <td>${coin.marketCap}</td>
+                    <td>${coin.liquidity}</td>
                     <td>
                     ${ 
                         coin.price !== null && coin.price !== undefined
-                        ? Number(coin.price).toFixed(8)
+                        ? Number(coin.price).toFixed(10)
                         : '0.00000000'
                     }
                     </td>
@@ -753,14 +788,13 @@
                     
                     <td class="${momentumClass}">${coin.momentum.toFixed(2)}%</td>
                     <td>${coin.velocity}/min</td>
-                    <td class="${ratioClass}">${coin.buySellRatio.toFixed(2)}</td>
+                    <td class="${ratioClass}">${coin.buySellRatio}</td>
                     <td><span class="signal-indicator ${coin.signal}"></span> ${coin.signal.toUpperCase()}</td>
                 </tr>
                 `;
             });
 
             coinsDataBody.innerHTML = html;
-            
         }
 
         function updateStats() {
